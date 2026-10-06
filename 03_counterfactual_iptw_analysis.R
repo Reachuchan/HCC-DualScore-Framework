@@ -289,10 +289,17 @@ fit_full_adj     <- coxph(full_adj_formula, data = dat_pooled, weights = w_ATT_w
 reduced_formula  <- as.formula(paste("Surv(OS_time_5y, OS_status_5y) ~ trt + quadrant +", paste(adj_vars, collapse = " + ")))
 fit_reduced      <- coxph(reduced_formula, data = dat_pooled, weights = w_ATT_win, robust = TRUE)
 
-lrt_stat    <- 2 * (fit_full_adj$loglik[2] - fit_reduced$loglik[2])
-df_diff     <- length(fit_full_adj$coefficients) - length(fit_reduced$coefficients)
-p_inter_val <- pchisq(lrt_stat, df = df_diff, lower.tail = FALSE)
+coef_names <- names(coef(fit_full_adj))
+inter_idx  <- grep("(trt:quadrant)|(quadrant.*:trt)", coef_names)
+beta_inter <- coef(fit_full_adj)[inter_idx]
+vcov_inter <- vcov(fit_full_adj)[inter_idx, inter_idx]
+
+wald_stat   <- as.numeric(t(beta_inter) %*% solve(vcov_inter) %*% beta_inter)
+df_diff     <- length(inter_idx)
+p_inter_val <- pchisq(wald_stat, df = df_diff, lower.tail = FALSE)
 p_inter_str <- ifelse(!is.na(p_inter_val) && p_inter_val < 0.001, "< 0.001", sprintf("%.3f", p_inter_val))
+
+cat(sprintf("\n>> P interaction: Chisq = %.3f, df = %d, P = %s\n\n", wald_stat, df_diff, p_inter_str))
 
 s6_table <- data.frame(
   Quadrant = quads, N_Patients = NA_character_, IPTW_RD_95CI = NA_character_,
